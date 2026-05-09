@@ -1,0 +1,12 @@
+build/
+build-termux/
+.cache/
+tools/cmake/
+*.o
+*.a
+*.so
+*.apk
+*.apks
+*.aar
+*.dex
+*.log

@@ -1,0 +1,24 @@
+- Goal (incl. success criteria):
+  - Дать углублённый обзор проекта vextik в техническом стиле.
+- Constraints/Assumptions:
+  - Не создавать новые документационные файлы.
+- Key decisions:
+  - Анализировать существующую структуру и код без изменений функциональности.
+- State:
+  - Done:
+    - Осмотрена верхнеуровневая структура каталогов.
+    - Прочитаны основные точки входа и модули (main, draw, aimbot, skinchanger, security).
+  - Now:
+    - Углублённое изучение модулей функций и UI.
+  - Next:
+    - Сформировать детальную оценку качества и архитектуры.
+- Open questions (UNCONFIRMED if needed):
+  - UNCONFIRMED: На каких устройствах и версиях Android планируется запуск?
+- Working set (files/ids/commands):
+  - c:/Proj/External/vextik/src
+  - c:/Proj/External/vextik/CMakeLists.txt
+  - c:/Proj/External/vextik/src/main.cpp
+  - c:/Proj/External/vextik/includes/draw/Android_draw/draw.cpp
+  - c:/Proj/External/vextik/src/func/aimbot.cpp
+  - c:/Proj/External/vextik/src/func/skinchanger.cpp
+  - c:/Proj/External/vextik/src/protect/security.cpp
