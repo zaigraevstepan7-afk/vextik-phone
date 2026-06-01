@@ -819,12 +819,6 @@ namespace ui::menu {
             ImGui::GetIO().FontGlobalScale = S;
         }
 
-        static int last_open_state = -1;
-        if (last_open_state != (int)bar::g_open) {
-            setInputPassThrough(!bar::g_open);
-            last_open_state = (int)bar::g_open;
-        }
-
         ImGuiIO& io = ImGui::GetIO();
         float dt = io.DeltaTime;
         ma = ImLerp(ma, bar::g_open ? 1.f : 0.f, ImClamp(12.f * dt, 0.f, 1.f));
