@@ -3,6 +3,7 @@
 #include "../other/memory.hpp"
 #include "../other/vector3.h"
 #include "../protect/oxorany.hpp"
+#include "offsets.hpp"
 #include <stdint.h>
 
 struct matrix {
@@ -13,8 +14,7 @@ struct matrix {
 };
 
 namespace offsets {
-    // Обновлено: TypeInfo PlayerManager из дампа (0x92BDA78)
-    inline uint64_t player_manager = oxorany(0x92BDA78);
+    inline uint64_t player_manager = oxorany(player_manager::type_info);
     
     // [!] Новый TypeInfo для InventoryManager в предоставленном дампе отсутствует.
     // Класс, судя по всему, находится в другом модуле (не Assembly-CSharp.dll).
@@ -22,17 +22,14 @@ namespace offsets {
     inline uint64_t inventory_manager = oxorany(0x814E7B0);
     
     namespace player {
-        // PlayerController отсутствует в дампе Assembly-CSharp.dll 
-        // (вероятно, в Assembly-CSharp-firstpass.dll или другом образе).
-        // Смещения оставлены без изменений.
-        inline uint64_t player_character_view = oxorany(0x48);
-        inline uint64_t aim_controller        = oxorany(0x80);
-        inline uint64_t weaponry_controller   = oxorany(0x88);
-        inline uint64_t movement_controller   = oxorany(0x98);
-        inline uint64_t occlusion_controller  = oxorany(0xB0);
-        inline uint64_t main_camera           = oxorany(0xE0);
-        inline uint64_t team                  = oxorany(0x79);
-        inline uint64_t photon_player         = oxorany(0x158);
+        inline uint64_t player_character_view = oxorany(player_controller::character_view1);
+        inline uint64_t aim_controller        = oxorany(player_controller::aim_controller);
+        inline uint64_t weaponry_controller   = oxorany(player_controller::weaponry_controller);
+        inline uint64_t movement_controller   = oxorany(player_controller::movement_controller);
+        inline uint64_t occlusion_controller  = oxorany(player_controller::player_occlusion_controller);
+        inline uint64_t main_camera           = oxorany(player_controller::player_main_camera);
+        inline uint64_t team                  = oxorany(player_controller::team);
+        inline uint64_t photon_player         = oxorany(player_controller::photon_player);
     }
 
     namespace view {
@@ -40,12 +37,11 @@ namespace offsets {
     }
 
     namespace movement {
-        // Подтверждено дампом MovementController: translationData @ 0xB0
-        inline uint64_t translation_data = oxorany(0xB0);
+        inline uint64_t translation_data = oxorany(movement_controller::translation_data);
     }
 
     namespace aim {
-        inline uint64_t aiming_data = oxorany(0x90);
+        inline uint64_t aiming_data = oxorany(aim_controller::aiming_data);
     }
 
     struct TMatrix {

@@ -34,7 +34,7 @@ bool SkinChanger::apply_to_local() {
     if (!PlayerManager) {
         return false;
     }
-    uint64_t LocalPlayer = rpm<uint64_t>(PlayerManager + oxorany(0x70));
+    uint64_t LocalPlayer = rpm<uint64_t>(PlayerManager + player_manager::local_player);
     if (!LocalPlayer) {
         return false;
     }

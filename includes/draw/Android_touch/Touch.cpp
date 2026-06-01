@@ -3,6 +3,7 @@
 #include <thread>
 #include <memory>
 #include <atomic>
+#include <mutex>
 #include <string>
 #include <dirent.h>
 #include <fcntl.h>
@@ -16,6 +17,24 @@
 #define TOUCH_MODE 2
 
 namespace touch {
+    // Touch events are produced by per-device input threads and consumed on the
+    // render thread in flush(). Queuing them (instead of writing io.MouseDown/
+    // io.MousePos directly from the threads) keeps both the press and release of
+    // a fast tap, and avoids racing ImGui's input handling.
+    struct touch_event {
+        float x, y;
+        bool down;
+    };
+    static std::mutex queue_mtx;
+    static std::vector<touch_event> event_queue;
+
+    static void push_event(float x, float y, bool down) {
+        std::lock_guard<std::mutex> lk(queue_mtx);
+        // Cap the queue so a stalled render thread can't grow it without bound.
+        if (event_queue.size() < 256)
+            event_queue.push_back({x, y, down});
+    }
+
     struct input {
         std::string path;
         int fd;
@@ -84,6 +103,12 @@ namespace touch {
         if (!imgui_io)
             imgui_io = &ImGui::GetIO();
         input_event events[64]{0};
+        // Per-thread touch state. Each input device runs its own input_thread,
+        // so these MUST NOT be static (that would share state across threads
+        // and corrupt coordinates when more than one touch device is active).
+        // They live outside the while loop to persist between reads.
+        bool isDown = false;
+        float x = 0.0f, y = 0.0f;
         while (in && in->running.load() && in->fd != -1 && imgui_io && imgui_io->BackendRendererUserData) {
             auto event_readed_count = read(in->fd, events, sizeof(events));
             if (event_readed_count == -1) {
@@ -97,8 +122,6 @@ namespace touch {
             }
             event_readed_count /= (ssize_t) sizeof(input_event);
 
-            static bool isDown = false;
-            static float x = 0.0f, y = 0.0f;
             for (long j = 0; j < event_readed_count; j++) {
                 auto &event = events[j];
                 if (event.type == EV_ABS) {
@@ -122,36 +145,38 @@ namespace touch {
                         continue;
                     }
                 }
-                if (event.code == SYN_REPORT && imgui_io) {
+                if (event.code == SYN_REPORT) {
 #if TOUCH_MODE == 2
-                    imgui_io->MouseDown[0] = in->trackingIDPresent ? isDown : event_readed_count > 2;
+                    bool down = in->trackingIDPresent ? isDown : event_readed_count > 2;
 #elif TOUCH_MODE == 0
-                    imgui_io->MouseDown[0] = isDown;
+                    bool down = isDown;
 #else
-                    imgui_io->MouseDown[0] = event_readed_count > 2;
+                    bool down = event_readed_count > 2;
 #endif
-                    if (imgui_io->MouseDown[0]) {
-                        switch (orientation) {
-                            case 1:
-                                imgui_io->MousePos.x = y;
-                                imgui_io->MousePos.y = in->absX.maximum - x;
-                                break;
-                            case 2:
-                                imgui_io->MousePos.x = in->absX.maximum - x;
-                                imgui_io->MousePos.y = in->absY.maximum - y;
-                                break;
-                            case 3:
-                                imgui_io->MousePos.x = in->absY.maximum - y;
-                                imgui_io->MousePos.y = x;
-                                break;
-                            default:
-                                imgui_io->MousePos.x = x;
-                                imgui_io->MousePos.y = y;
-                                break;
-                        }
-                        imgui_io->MousePos.x *= in->absXMultiplier;
-                        imgui_io->MousePos.y *= in->absYMultiplier;
+                    // Compute the screen position every report (also on release)
+                    // so the queued release lands at the correct location.
+                    float px, py;
+                    switch (orientation) {
+                        case 1:
+                            px = y;
+                            py = in->absX.maximum - x;
+                            break;
+                        case 2:
+                            px = in->absX.maximum - x;
+                            py = in->absY.maximum - y;
+                            break;
+                        case 3:
+                            px = in->absY.maximum - y;
+                            py = x;
+                            break;
+                        default:
+                            px = x;
+                            py = y;
+                            break;
                     }
+                    px *= in->absXMultiplier;
+                    py *= in->absYMultiplier;
+                    push_event(px, py, down);
                 }
             }
         }
@@ -193,6 +218,21 @@ namespace touch {
 
     void updateOrientation(uint8_t _orientation) {
         orientation = _orientation;
+    }
+
+    void flush() {
+        ImGuiIO& io = ImGui::GetIO();
+        std::vector<touch_event> local;
+        {
+            std::lock_guard<std::mutex> lk(queue_mtx);
+            if (event_queue.empty()) return;
+            local.swap(event_queue);
+        }
+        for (const auto& e : local) {
+            io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
+            io.AddMousePosEvent(e.x, e.y);
+            io.AddMouseButtonEvent(0, e.down);
+        }
     }
 
     void setGrab(bool enable) {

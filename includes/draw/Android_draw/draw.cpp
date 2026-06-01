@@ -136,6 +136,9 @@ void drawBegin() {
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplAndroid_NewFrame(native_window_screen_x, native_window_screen_y);
+    // Feed queued touch events through ImGui's event queue before NewFrame so
+    // taps are never dropped between frames.
+    touch::flush();
     ImGui::NewFrame();
 }
 

@@ -29,9 +29,11 @@ int main(int argc, char** argv) {
     native_window_screen_y = g_sh;
 
     if (!initGUI_draw(native_window_screen_x, native_window_screen_y, true)) return -1;
-    setInputPassThrough(true);
 
     touch::init(displayInfo.width, displayInfo.height, (uint8_t)displayInfo.orientation);
+
+    // Start with touches passing through to the game (menu is closed by default).
+    setInputPassThrough(true);
 
     print_status(oxorany("please start game"));
 
@@ -114,6 +116,17 @@ int main(int argc, char** argv) {
             }
             ui::bar::render();
             ui::menu::render();
+        }
+
+        // Touch routing: block touches from reaching the game ONLY while the
+        // menu is open (landscape). When the menu is closed, touches pass
+        // through to the game. Evaluated every frame, edge-triggered so we
+        // only issue the EVIOCGRAB ioctl when the state actually changes.
+        bool menu_open = is_landscape && ui::bar::g_open;
+        static int last_pass_state = -1;
+        if (last_pass_state != (int)menu_open) {
+            setInputPassThrough(!menu_open);
+            last_pass_state = (int)menu_open;
         }
 
         bool vis = ui::bar::g_open;
