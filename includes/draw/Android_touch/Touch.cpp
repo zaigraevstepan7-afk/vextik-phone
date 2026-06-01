@@ -84,6 +84,12 @@ namespace touch {
         if (!imgui_io)
             imgui_io = &ImGui::GetIO();
         input_event events[64]{0};
+        // Per-thread touch state. Each input device runs its own input_thread,
+        // so these MUST NOT be static (that would share state across threads
+        // and corrupt coordinates when more than one touch device is active).
+        // They live outside the while loop to persist between reads.
+        bool isDown = false;
+        float x = 0.0f, y = 0.0f;
         while (in && in->running.load() && in->fd != -1 && imgui_io && imgui_io->BackendRendererUserData) {
             auto event_readed_count = read(in->fd, events, sizeof(events));
             if (event_readed_count == -1) {
@@ -97,8 +103,6 @@ namespace touch {
             }
             event_readed_count /= (ssize_t) sizeof(input_event);
 
-            static bool isDown = false;
-            static float x = 0.0f, y = 0.0f;
             for (long j = 0; j < event_readed_count; j++) {
                 auto &event = events[j];
                 if (event.type == EV_ABS) {
