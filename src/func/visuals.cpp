@@ -209,14 +209,14 @@ void visuals::draw() {
         player::last_player_manager = PlayerManager;
     }
 
-    uint64_t LocalPlayer = rpm<uint64_t>(PlayerManager + oxorany(0x70));
+    uint64_t LocalPlayer = rpm<uint64_t>(PlayerManager + player_manager::local_player);
     if (!LocalPlayer) return;
 
     matrix ViewMatrix = player::view_matrix(LocalPlayer);
     Vector3 LocalPosition = player::position(LocalPlayer);
     int LocalTeam = rpm<uint8_t>(LocalPlayer + offsets::player::team);
 
-    uint64_t PlayerList = rpm<uint64_t>(PlayerManager + 40); 
+    uint64_t PlayerList = rpm<uint64_t>(PlayerManager + player_manager::all_players);
     if (!PlayerList) return;
 
     int PlayerCount = rpm<int>(PlayerList + 32); 
@@ -393,7 +393,7 @@ void visuals::update_tracers(uint64_t local_player) {
     uint64_t weaponry = rpm<uint64_t>(local_player + offsets::player::weaponry_controller);
     if (!weaponry) return;
 
-    uint64_t gun_controller = rpm<uint64_t>(weaponry + oxorany(0xA8));
+    uint64_t gun_controller = rpm<uint64_t>(weaponry + weaponry_controller::current_weapon_controller);
     if (!gun_controller) return;
 
     if (gun_controller != g_last_gun_controller) {

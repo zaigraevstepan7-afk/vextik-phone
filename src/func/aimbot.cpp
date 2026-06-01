@@ -24,7 +24,7 @@ namespace aimbot {
         uint64_t PlayerManager = get_player_manager();
         if (!PlayerManager) return;
 
-        uint64_t LocalPlayer = rpm<uint64_t>(PlayerManager + oxorany(0x70));
+        uint64_t LocalPlayer = rpm<uint64_t>(PlayerManager + player_manager::local_player);
         if (!LocalPlayer) return;
 
         uint64_t AimController = rpm<uint64_t>(LocalPlayer + offsets::player::aim_controller);
@@ -34,7 +34,7 @@ namespace aimbot {
         if (!AimingData) return;
 
         uint64_t weaponry = rpm<uint64_t>(LocalPlayer + offsets::player::weaponry_controller);
-        uint64_t weapon = weaponry ? rpm<uint64_t>(weaponry + oxorany(0xA8)) : 0;
+        uint64_t weapon = weaponry ? rpm<uint64_t>(weaponry + weaponry_controller::current_weapon_controller) : 0;
         
         int current_weapon_id = 0;
         if (weapon) {
@@ -66,7 +66,7 @@ namespace aimbot {
         Vector3 CameraPos = player::camera_position(LocalPlayer);
         int LocalTeam = rpm<uint8_t>(LocalPlayer + offsets::player::team);
 
-        uint64_t PlayerList = rpm<uint64_t>(PlayerManager + oxorany(0x28));
+        uint64_t PlayerList = rpm<uint64_t>(PlayerManager + player_manager::all_players);
         if (!PlayerList) return;
 
         int PlayerCount = rpm<int>(PlayerList + oxorany(0x20));
