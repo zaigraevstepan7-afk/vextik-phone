@@ -2,6 +2,7 @@
 #include "theme/theme.hpp"
 #include "../../includes/internal/ImGui/imgui.h"
 #include "../../includes/internal/ImGui/imgui_internal.h"
+#include "../../includes/internal/Android_touch/Touch.hpp"
 #include <cmath>
 
 namespace ui::bar {
@@ -12,7 +13,10 @@ namespace ui::bar {
     float game_alpha() { return g_game_alpha; }
 
     void render() {
-        if (g_game_alpha < 0.001f) return;
+        if (g_game_alpha < 0.001f) {
+            touch::setBarRegion(false, 0, 0, 0, 0);
+            return;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
         static bool state = true;
@@ -32,6 +36,10 @@ namespace ui::bar {
 
         ImVec2 wp(r.Min.x - 30.f * sc, r.Min.y - 50.f * sc);
         ImVec2 ws(bw + 60.f * sc, bh + 100.f * sc);
+
+        // Let the touch thread know the bar button is interactive so taps on
+        // it are captured while every other touch passes through to the game.
+        touch::setBarRegion(true, wp.x, wp.y, wp.x + ws.x, wp.y + ws.y);
 
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 1.f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));

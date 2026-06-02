@@ -8,7 +8,8 @@
 #include "../../includes/internal/ImGui/imgui.h"
 #include "../../includes/internal/ImGui/imgui_internal.h"
 #include "../../includes/internal/Android_draw/draw.h"
-#include "../func/skinchanger.hpp" 
+#include "../../includes/internal/Android_touch/Touch.hpp"
+#include "../func/skinchanger.hpp"
 //#include "../func/dumper.hpp"
 #include "../game/game.hpp"
 #include <cmath>
@@ -829,7 +830,10 @@ namespace ui::menu {
         float dt = io.DeltaTime;
         ma = ImLerp(ma, bar::g_open ? 1.f : 0.f, ImClamp(12.f * dt, 0.f, 1.f));
 
-        if (ma < 0.01f) return;
+        if (ma < 0.01f) {
+            touch::setMenuRegion(false, 0, 0, 0, 0);
+            return;
+        }
 
         tick();
 
@@ -886,6 +890,17 @@ namespace ui::menu {
         last_wpos = wpos;
 
         ImGui::SetNextWindowPos(wpos, ImGuiCond_Always);
+
+        // Mark the menu area as interactive for the touch thread. When a popup
+        // is open its widgets can extend outside the panel, so capture the whole
+        // screen in that case; otherwise just the panel (plus a small margin).
+        if (popup()) {
+            touch::setMenuRegion(true, 0, 0, g_sw, g_sh);
+        } else {
+            float m = 40.f * S;
+            touch::setMenuRegion(true, wpos.x - m, wpos.y - m,
+                                 wpos.x + wsz.x + m, wpos.y + wsz.y + m);
+        }
 
         if (ImGui::Begin("##m", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground)) {
             ImVec2 wp = ImGui::GetWindowPos();

@@ -159,8 +159,12 @@ void updateStreamProof(bool enable) {
 }
 
 void setInputPassThrough(bool enable) {
-    if (native_window && g_Initialized) {
-        touch::setGrab(!enable);
+    // Touch capture is now decided per-gesture by the touch thread based on
+    // whether a touch lands on the menu/bar UI (see Touch.cpp). We only make
+    // sure the device is released here so game input is never blocked
+    // wholesale while the menu is closed.
+    if (native_window && g_Initialized && enable) {
+        touch::setGrab(false);
     }
 }
 

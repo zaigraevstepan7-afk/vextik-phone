@@ -3,6 +3,7 @@
 #include <thread>
 #include <memory>
 #include <atomic>
+#include <mutex>
 #include <string>
 #include <dirent.h>
 #include <fcntl.h>
@@ -53,6 +54,7 @@ namespace touch {
 
         void setGrab(bool enable) {
             if (!canBeUsed || fd == -1) return;
+            if (grabbed.load() == enable) return;
             int v = enable ? 1 : 0;
             if (ioctl(fd, EVIOCGRAB, v) != -1) {
                 grabbed.store(enable);
@@ -79,11 +81,49 @@ namespace touch {
     ImGuiIO *imgui_io;
     std::vector<std::unique_ptr<input>> inputs;
 
+    // ---- UI hit regions (set every frame by the render thread) ----
+    std::mutex region_mutex;
+    bool bar_valid = false;
+    bool menu_valid = false;
+    float bar_rect[4]{};
+    float menu_rect[4]{};
+
+    static bool inRect(const float *r, float x, float y) {
+        return x >= r[0] && y >= r[1] && x <= r[2] && y <= r[3];
+    }
+
+    static bool pointInUI(float x, float y) {
+        std::lock_guard<std::mutex> lock(region_mutex);
+        if (bar_valid && inRect(bar_rect, x, y)) return true;
+        if (menu_valid && inRect(menu_rect, x, y)) return true;
+        return false;
+    }
+
+    void setBarRegion(bool valid, float x0, float y0, float x1, float y1) {
+        std::lock_guard<std::mutex> lock(region_mutex);
+        bar_valid = valid;
+        bar_rect[0] = x0; bar_rect[1] = y0; bar_rect[2] = x1; bar_rect[3] = y1;
+    }
+
+    void setMenuRegion(bool valid, float x0, float y0, float x1, float y1) {
+        std::lock_guard<std::mutex> lock(region_mutex);
+        menu_valid = valid;
+        menu_rect[0] = x0; menu_rect[1] = y0; menu_rect[2] = x1; menu_rect[3] = y1;
+    }
+
     void input_thread(input *in) {
         sleep(1);
         if (!imgui_io)
             imgui_io = &ImGui::GetIO();
         input_event events[64]{0};
+
+        // Per-thread (per-device) state. These MUST NOT be static: one thread
+        // runs per input device and static locals would be shared between them.
+        bool isDown = false;
+        float x = 0.0f, y = 0.0f;
+        bool gestureActive = false;   // a finger is currently down
+        bool gestureOwnedByUI = false; // the active gesture started over the UI
+
         while (in && in->running.load() && in->fd != -1 && imgui_io && imgui_io->BackendRendererUserData) {
             auto event_readed_count = read(in->fd, events, sizeof(events));
             if (event_readed_count == -1) {
@@ -97,8 +137,6 @@ namespace touch {
             }
             event_readed_count /= (ssize_t) sizeof(input_event);
 
-            static bool isDown = false;
-            static float x = 0.0f, y = 0.0f;
             for (long j = 0; j < event_readed_count; j++) {
                 auto &event = events[j];
                 if (event.type == EV_ABS) {
@@ -124,37 +162,65 @@ namespace touch {
                 }
                 if (event.code == SYN_REPORT && imgui_io) {
 #if TOUCH_MODE == 2
-                    imgui_io->MouseDown[0] = in->trackingIDPresent ? isDown : event_readed_count > 2;
+                    bool down = in->trackingIDPresent ? isDown : event_readed_count > 2;
 #elif TOUCH_MODE == 0
-                    imgui_io->MouseDown[0] = isDown;
+                    bool down = isDown;
 #else
-                    imgui_io->MouseDown[0] = event_readed_count > 2;
+                    bool down = event_readed_count > 2;
 #endif
-                    if (imgui_io->MouseDown[0]) {
-                        switch (orientation) {
-                            case 1:
-                                imgui_io->MousePos.x = y;
-                                imgui_io->MousePos.y = in->absX.maximum - x;
-                                break;
-                            case 2:
-                                imgui_io->MousePos.x = in->absX.maximum - x;
-                                imgui_io->MousePos.y = in->absY.maximum - y;
-                                break;
-                            case 3:
-                                imgui_io->MousePos.x = in->absY.maximum - y;
-                                imgui_io->MousePos.y = x;
-                                break;
-                            default:
-                                imgui_io->MousePos.x = x;
-                                imgui_io->MousePos.y = y;
-                                break;
+                    // Map raw coordinates into ImGui screen space.
+                    float mx, my;
+                    switch (orientation) {
+                        case 1:
+                            mx = y;
+                            my = in->absX.maximum - x;
+                            break;
+                        case 2:
+                            mx = in->absX.maximum - x;
+                            my = in->absY.maximum - y;
+                            break;
+                        case 3:
+                            mx = in->absY.maximum - y;
+                            my = x;
+                            break;
+                        default:
+                            mx = x;
+                            my = y;
+                            break;
+                    }
+                    mx *= in->absXMultiplier;
+                    my *= in->absYMultiplier;
+
+                    if (down) {
+                        if (!gestureActive) {
+                            // Gesture just started: decide who owns it.
+                            gestureActive = true;
+                            gestureOwnedByUI = pointInUI(mx, my);
+                            if (gestureOwnedByUI) {
+                                // Grab so the game doesn't also react underneath.
+                                in->setGrab(true);
+                            }
                         }
-                        imgui_io->MousePos.x *= in->absXMultiplier;
-                        imgui_io->MousePos.y *= in->absYMultiplier;
+                        if (gestureOwnedByUI) {
+                            imgui_io->MousePos = ImVec2(mx, my);
+                            imgui_io->MouseDown[0] = true;
+                        }
+                    } else {
+                        if (gestureActive) {
+                            if (gestureOwnedByUI) {
+                                imgui_io->MouseDown[0] = false;
+                            }
+                            // Release the device so touches reach the game again.
+                            in->setGrab(false);
+                            gestureActive = false;
+                            gestureOwnedByUI = false;
+                        }
                     }
                 }
             }
         }
+
+        if (in) in->setGrab(false);
     }
 
     bool init(int32_t _screen_w, int32_t _screen_h, uint8_t _orientation) {
